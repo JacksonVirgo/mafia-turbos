@@ -1,3 +1,4 @@
+use axum::response::Html;
 use maud::{Markup, html};
 
 #[derive(Debug)]
@@ -51,5 +52,10 @@ impl WebPageBuilder {
                (self.body)
             }
         }
+    }
+
+    pub fn build_as_html(self) -> Html<String> {
+        let html = self.build();
+        Html(html.into_string())
     }
 }

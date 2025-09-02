@@ -19,16 +19,13 @@ async fn main() {
 }
 
 async fn root() -> Html<String> {
-    let markdown = WebPageBuilder::new()
+    WebPageBuilder::new()
         .title("Mafia Turbos")
         .body(html! {
             h1."text-2xl bold underline"{ "Mafia Turbos "}
             h2 { "Subheader"}
         })
-        .build();
-
-    let html = markdown.into_string();
-    Html(html)
+        .build_as_html()
 }
 
 async fn create_user(Json(payload): Json<CreateUser>) -> (StatusCode, Json<User>) {
