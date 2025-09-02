@@ -1,8 +1,11 @@
 use axum::{
     Json, Router,
     http::StatusCode,
+    response::Html,
     routing::{get, post},
 };
+use mafia_turbos::builders::webpage::WebPageBuilder;
+use maud::html;
 use serde::{Deserialize, Serialize};
 
 #[tokio::main]
@@ -15,8 +18,17 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn root() -> &'static str {
-    "Hello, World!"
+async fn root() -> Html<String> {
+    let markdown = WebPageBuilder::new()
+        .title("Mafia Turbos")
+        .body(html! {
+            h1."text-2xl bold underline"{ "Mafia Turbos "}
+            h2 { "Subheader"}
+        })
+        .build();
+
+    let html = markdown.into_string();
+    Html(html)
 }
 
 async fn create_user(Json(payload): Json<CreateUser>) -> (StatusCode, Json<User>) {
