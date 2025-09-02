@@ -12,6 +12,7 @@ Rough list (in some kind of order) of what I want to do:
 5. Presence and Reconnections
 6. Lobbies
     - Create, Join, Leaving
+    - If a lobby is empty, just delete it.
 7. Game "engine" skeleton for mountainous games
 8. Voting integration for eliminations and night kills.
 9. Private sub-lobbies for mafia chat, etc.
