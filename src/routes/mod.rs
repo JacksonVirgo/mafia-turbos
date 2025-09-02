@@ -1,13 +1,10 @@
 pub mod homepage;
+pub mod login;
 
-use axum::{
-    Router,
-    routing::{get, post},
-};
+use axum::{Router, routing::get};
 
 pub fn router() -> Router {
     Router::new()
         .route("/", get(homepage::homepage_root))
-        .route("/user_info", get(homepage::get_user))
-        .route("/create_user", post(homepage::create_user))
+        .merge(login::router())
 }
