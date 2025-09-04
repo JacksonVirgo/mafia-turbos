@@ -14,9 +14,7 @@ pub async fn chatroom() -> Html<String> {
             hr {}
 
             div hx-ext="ws" ws-connect="/ws" {
-                div id="chatroom" {
-
-                }
+                div id="chatroom" hx-swap-oob="beforeend" {}
                 form id="chatbox" ws-send {
                     input name="chat_message" {}
                 }

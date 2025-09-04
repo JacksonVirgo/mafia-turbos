@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use axum::{
     Router,
     body::Body,
@@ -10,6 +8,15 @@ use axum::{
     http::Response,
     routing::any,
 };
+use serde_json::Value;
+
+use crate::routes::websocket::{
+    chatbox::handle_chatbox,
+    data::{Inbound, sole_key},
+};
+
+pub mod chatbox;
+pub mod data;
 
 pub fn router() -> Router {
     Router::new().route("/ws", any(handler))
@@ -29,25 +36,43 @@ async fn handle_socket(mut socket: WebSocket) {
         };
 
         if let Message::Text(text) = msg {
-            let parsed: Result<HashMap<String, serde_json::Value>, _> = serde_json::from_str(&text);
-            match parsed {
-                Ok(map) => {
-                    if let Some(val) = map.get("action") {
-                        println!("action = {:?}", val);
-                    }
-                    println!("whole map = {:?}", map);
-                }
-                Err(err) => {
-                    eprintln!("failed to parse JSON: {err}");
-                }
-            }
-            if socket.send(Message::Text(text)).await.is_err() {
-                return;
+            let Ok(input) = serde_json::from_str::<Inbound>(&text) else {
+                eprintln!("Bad in-bound JSON");
+                continue;
+            };
+
+            let route = input
+                .headers
+                .get("HX-Target")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .or_else(|| {
+                    input
+                        .rest
+                        .get("event")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                })
+                .or_else(|| sole_key(&input.rest))
+                .unwrap_or_else(|| "unknown".into());
+
+            if let Err(err) = dispatch(&route, &mut socket, &input).await {
+                eprintln!("dispatch({route}) error: {err}");
             }
         } else {
             if socket.send(msg).await.is_err() {
                 return;
             }
         };
+    }
+}
+
+async fn dispatch(route: &str, ws: &mut WebSocket, payload: &Inbound) -> anyhow::Result<()> {
+    match route {
+        "chatbox" => handle_chatbox(ws, payload).await,
+        _ => {
+            println!("Unknown Websocket Route: {}", route);
+            Ok(())
+        }
     }
 }
