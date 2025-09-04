@@ -2,6 +2,8 @@ use mafia_turbos::app::{database::database_init, server::start_server};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenv::dotenv().ok();
+
     let db_pool = match database_init().await {
         Ok(pool) => pool,
         Err(err) => {

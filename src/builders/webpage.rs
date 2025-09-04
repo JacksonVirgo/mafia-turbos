@@ -47,8 +47,10 @@ impl WebPageBuilder {
                 title { (gen_title) }
                 script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" {}
                 script src="https://unpkg.com/htmx.org@1.9.10" {}
+                script src="https://cdn.jsdelivr.net/npm/htmx-ext-ws@2.0.2" {}
+
             }
-            body."p-4" {
+            body."p-4" hx-ext="ws" {
                (self.body)
             }
         }
