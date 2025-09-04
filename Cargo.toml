@@ -10,3 +10,12 @@ dotenv = "0.15.0"
 maud = "0.27.0"
 serde = { version = "1.0.219", features = ["derive"] }
 tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "postgres",
+    "runtime-tokio",
+    "tls-native-tls",
+    "chrono",
+    "migrate",
+    "macros",
+] }
+anyhow = "1.0.99"

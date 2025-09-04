@@ -1,9 +1,16 @@
-use axum::Router;
-use mafia_turbos::routes;
+use mafia_turbos::app::{database::database_init, server::start_server};
 
 #[tokio::main]
-async fn main() {
-    let app = Router::new().merge(routes::router());
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+async fn main() -> anyhow::Result<()> {
+    let db_pool = match database_init().await {
+        Ok(pool) => pool,
+        Err(err) => {
+            println!("{:?}", err);
+            return Ok(());
+        }
+    };
+
+    start_server(db_pool).await?;
+
+    Ok(())
 }
