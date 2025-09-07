@@ -1,9 +1,13 @@
 use axum::extract::ws::{Message, WebSocket};
 use maud::html;
 
-use crate::routes::websocket::data::Inbound;
+use crate::routes::websocket::{ServerState, data::Inbound};
 
-pub async fn handle_chatbox(ws: &mut WebSocket, payload: &Inbound) -> anyhow::Result<()> {
+pub async fn handle_chatbox(
+    ws: &mut WebSocket,
+    _: &ServerState,
+    payload: &Inbound,
+) -> anyhow::Result<()> {
     let Some(message) = payload.rest.get("chat_message") else {
         return Ok(());
     };
@@ -18,6 +22,18 @@ pub async fn handle_chatbox(ws: &mut WebSocket, payload: &Inbound) -> anyhow::Re
         }
     };
     let html = markdown.into_string();
+
+    // let mut rx = ctx.tx.subscribe();
+    // let mut send_task = tokio::spawn({
+    //     async move {
+    //         while let Ok(msg) = rx.recv().await {
+    //             if ws.send(Message::Text(html.into())).await.is_err() {
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // });
+
     ws.send(Message::Text(html.into())).await?;
     Ok(())
 }

@@ -4,9 +4,13 @@ pub mod login;
 pub mod websocket;
 pub mod whoami;
 
+use std::sync::Arc;
+
 use axum::{Router, routing::get};
 
-pub fn router() -> Router {
+use crate::app::server::state::ServerState;
+
+pub fn router() -> Router<Arc<ServerState>> {
     Router::new()
         .route("/", get(homepage::homepage_root))
         .route("/whoami", get(whoami::who_am_i_root))

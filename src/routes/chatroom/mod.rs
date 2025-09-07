@@ -1,11 +1,22 @@
-use axum::{Router, response::Html, routing::get};
-use maud::html;
+use std::sync::Arc;
 
-use crate::builders::webpage::WebPageBuilder;
+use axum::{Router, extract::Query, response::Html, routing::get};
+use maud::html;
+use serde::Deserialize;
+
+use crate::{app::server::state::ServerState, builders::webpage::WebPageBuilder};
 
 pub mod data;
 
-pub async fn chatroom() -> Html<String> {
+#[derive(Deserialize)]
+pub struct GuestLoginQuery {
+    username: String,
+    code: String,
+}
+
+pub async fn chatroom(Query(q): Query<GuestLoginQuery>) -> Html<String> {
+    let ws_url = format!("/ws?username={}&channel={}", q.username, q.code);
+
     WebPageBuilder::new()
         .title("Mafia Turbos")
         .body(html! {
@@ -13,8 +24,11 @@ pub async fn chatroom() -> Html<String> {
             h2 { "Chat Room"}
             hr {}
 
-            div hx-ext="ws" ws-connect="/ws" {
-                div id="chatroom" hx-swap-oob="beforeend" {}
+            div hx-ext="ws" ws-connect=(ws_url) {
+                ul id="chat-messages" {
+                    li {"Existing Item"}
+                }
+
                 form id="chatbox" ws-send {
                     input name="chat_message" {}
                 }
@@ -24,6 +38,6 @@ pub async fn chatroom() -> Html<String> {
         .build_as_html()
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<Arc<ServerState>> {
     Router::new().route("/chatroom", get(chatroom))
 }

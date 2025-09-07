@@ -1,4 +1,4 @@
-use mafia_turbos::app::{database::database_init, server::start_server};
+use mafia_turbos::app::{database::database_init, server::setup::start_server};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

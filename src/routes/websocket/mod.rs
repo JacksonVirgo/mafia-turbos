@@ -1,78 +1,109 @@
+use std::sync::Arc;
+
+use crate::app::server::state::{RoomState, ServerState};
 use axum::{
     Router,
-    body::Body,
     extract::{
-        WebSocketUpgrade,
+        Query, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
-    http::Response,
-    routing::any,
+    response::IntoResponse,
+    routing::get,
 };
-use serde_json::Value;
-
-use crate::routes::websocket::{
-    chatbox::handle_chatbox,
-    data::{Inbound, sole_key},
-};
+use futures::{sink::SinkExt, stream::StreamExt};
+use maud::html;
+use serde::Deserialize;
 
 pub mod chatbox;
 pub mod data;
 
-pub fn router() -> Router {
-    Router::new().route("/ws", any(handler))
+#[derive(Deserialize, Clone)]
+struct Connect {
+    username: String,
+    channel: String,
 }
 
-async fn handler(ws: WebSocketUpgrade) -> Response<Body> {
-    ws.on_upgrade(handle_socket)
+pub fn router() -> Router<Arc<ServerState>> {
+    Router::new().route("/ws", get(websocket_handler))
 }
 
-async fn handle_socket(mut socket: WebSocket) {
-    while let Some(raw_msg) = socket.recv().await {
-        let msg = match raw_msg {
-            Ok(msg) => msg,
-            _ => {
-                return;
-            }
-        };
-
-        if let Message::Text(text) = msg {
-            let Ok(input) = serde_json::from_str::<Inbound>(&text) else {
-                eprintln!("Bad in-bound JSON");
-                continue;
-            };
-
-            let route = input
-                .headers
-                .get("HX-Target")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-                .or_else(|| {
-                    input
-                        .rest
-                        .get("event")
-                        .and_then(Value::as_str)
-                        .map(str::to_owned)
-                })
-                .or_else(|| sole_key(&input.rest))
-                .unwrap_or_else(|| "unknown".into());
-
-            if let Err(err) = dispatch(&route, &mut socket, &input).await {
-                eprintln!("dispatch({route}) error: {err}");
-            }
-        } else {
-            if socket.send(msg).await.is_err() {
-                return;
-            }
-        };
-    }
+async fn websocket_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<ServerState>>,
+    Query(connect): Query<Connect>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| websocket(socket, state, connect))
 }
 
-async fn dispatch(route: &str, ws: &mut WebSocket, payload: &Inbound) -> anyhow::Result<()> {
-    match route {
-        "chatbox" => handle_chatbox(ws, payload).await,
-        _ => {
-            println!("Unknown Websocket Route: {}", route);
-            Ok(())
+async fn websocket(stream: WebSocket, state: Arc<ServerState>, connect: Connect) {
+    let (mut sender, mut receiver) = stream.split();
+
+    // join/create room using URL-provided connect info
+    let (tx, username, channel) = {
+        let mut rooms = state.rooms.lock().unwrap();
+        let room = rooms
+            .entry(connect.channel.clone())
+            .or_insert_with(RoomState::new);
+
+        // reject duplicate usernames per room
+        if !room.user_set.insert(connect.username.clone()) {
+            let _ = sender.send(Message::Text("Username taken".into()));
+            return;
+        }
+
+        (
+            room.tx.clone(),
+            connect.username.clone(),
+            connect.channel.clone(),
+        )
+    };
+
+    let mut rx = tx.subscribe();
+
+    let _ = tx.send(
+        html! {
+            div hx-swap-oob="beforeend:#chat-messages" {
+                li { (format!("{} joined.", username)) }
+            }
+        }
+        .into_string(),
+    );
+
+    let mut send_task = tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            if sender.send(Message::Text(msg.into())).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let name_for_recv = username.clone();
+    let tx_for_recv = tx.clone();
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(Message::Text(text))) = receiver.next().await {
+            let _ = tx_for_recv.send(format!("{}: {}", name_for_recv, text));
+        }
+    });
+
+    tokio::select! {
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
+    };
+
+    let _ = tx.send(
+        html! {
+            div hx-swap-oob="beforeend:#chat-messages" {
+                li { (format!("{} left.", username)) }
+            }
+        }
+        .into_string(),
+    );
+
+    let mut rooms = state.rooms.lock().unwrap();
+    if let Some(room) = rooms.get_mut(&channel) {
+        room.user_set.remove(&username);
+        if room.user_set.is_empty() {
+            rooms.remove(&channel);
         }
     }
 }

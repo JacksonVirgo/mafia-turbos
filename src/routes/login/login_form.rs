@@ -1,48 +1,57 @@
-use axum::{Form, http::StatusCode, response::Html};
-use axum_extra::extract::{CookieJar, cookie::Cookie};
+use axum::{
+    Form,
+    http::{HeaderMap, HeaderName, HeaderValue, StatusCode},
+    response::{Html, IntoResponse},
+};
+use axum_extra::extract::CookieJar;
 use maud::html;
 use serde::Deserialize;
 
-pub async fn login_form(jar: CookieJar) -> Html<String> {
-    if let Some(cookie) = jar.get("username") {
-        let markdown = html! {
-            div {
-                h3."text-xl" { "Welcome back, " (cookie.value()) }
-            }
-        };
-        Html(markdown.into_string())
-    } else {
-        let markdown = html! {
-            div."border border-2 border-black p-4 rounded-lg" {
-                h2."bold underline text-lg" { "Log in as a guest!"}
-                form hx-post="/signup" hx-swap="innerHTML" ."flex flex-col gap-2" {
-                    label for="name" { "Username:"}
-                    input id="name" name="name" type="text" required ."border border-black" {}
-                    button type="submit" ." border border-black hover:bg-zinc-200 hover:cursor-pointer" { "Signup as Guest"}
-                }
-            }
-        };
+pub async fn login_form(_: CookieJar) -> Html<String> {
+    let markdown = html! {
+        div."border border-2 border-black p-4 rounded-lg" {
+            h2."bold underline text-lg" { "Log in as a guest!"}
+            form hx-post="/signup" hx-swap="innerHTML" ."flex flex-col gap-2" {
+                label for="name" { "Username:"}
+                input id="name" name="name" type="text" required ."border border-black" {}
 
-        Html(markdown.into_string())
-    }
+                label for="code" {"Room Code:"}
+                input id="code" name="code" type="text" required ."border border-black" {}
+
+                button type="submit" ." border border-black hover:bg-zinc-200 hover:cursor-pointer" { "Signup as Guest"}
+            }
+        }
+    };
+
+    Html(markdown.into_string())
 }
 
 #[derive(Deserialize)]
 pub struct GuestLoginQuery {
     name: String,
+    code: String,
 }
 
-pub async fn login_form_submission(
-    jar: CookieJar,
-    Form(form): Form<GuestLoginQuery>,
-) -> (CookieJar, (StatusCode, Html<String>)) {
-    let mut c = Cookie::new("username", form.name.clone());
-    c.set_path("/");
-    c.set_http_only(true);
-    c.set_secure(true);
+// pub async fn login_form_submission(Form(form): Form<GuestLoginQuery>) -> impl IntoResponse {
+//     let mut headers = HeaderMap::new();
+//     let redirect_url = format!("/chatroom?username={}&code={}", form.name, form.code);
+//     headers.insert("HX-Redirect", redirect_url.parse().unwrap());
+//     let body = Html(format!("<div>Logged in as {}</div>", form.name));
+//     (headers, StatusCode::OK, body)
+// }
 
-    let form = format!("<div>Logged in as {}</div>", form.name);
+pub async fn login_form_submission(Form(form): Form<GuestLoginQuery>) -> impl IntoResponse {
+    let mut headers = HeaderMap::new();
+    let redirect_url = format!("/chatroom?username={}&code={}", form.name, form.code);
 
-    let updated_jar = jar.add(c);
-    (updated_jar, (StatusCode::ACCEPTED, Html(form)))
+    headers.insert(
+        HeaderName::from_static("hx-redirect"),
+        HeaderValue::from_str(redirect_url.as_str()).unwrap(),
+    );
+
+    (
+        StatusCode::OK,
+        headers,
+        Html(String::from("<div>Loading</div>")),
+    )
 }
