@@ -29,8 +29,8 @@ pub async fn chatroom(Query(q): Query<GuestLoginQuery>) -> Html<String> {
                     li {"Existing Item"}
                 }
 
-                form id="chatbox" ws-send {
-                    input name="chat_message" {}
+                form id="chatbox" ws-send hx-on::htmx:wsAfterSend="this.reset();" {
+                    input name="chat_message" autocomplete="off" required {}
                 }
             }
 
